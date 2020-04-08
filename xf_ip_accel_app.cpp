@@ -28,6 +28,153 @@ unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0};
 
+struct possibleBlob{
+	unsigned int color;
+	unsigned int area;
+	unsigned int perimeter;
+	bool valid;
+};
+
+possibleBlob possibleBlobs[1000];
+unsigned short possibleBlobsCounter = 0;
+
+struct run{
+	unsigned short start, end;
+	unsigned short associatedPossibleBlob;
+};
+
+void verify_overlap(unsigned short i, run runArray[100], run run){
+	bool overlapDetected = false; //to control if its the first overlap detected or not
+	for(unsigned short c = 0; c < i; c++){
+		if (
+			((runArray[c].start <= run.start) && (runArray[c].end >= run.start)) ||
+			((runArray[c].start <= run.end) && (runArray[c].end >= run.end)) ||
+			((runArray[c].start >= run.start) && (runArray[c].end <= run.end)) )
+			{
+
+			if (!overlapDetected){ //if it is its first overlap...
+				run.associatedPossibleBlob = runArray[c].associatedPossibleBlob; // associate with possible blob from previous line
+
+				// TODO update possible blob features
+				possibleBlobs[runArray[c].associatedPossibleBlob].area++;
+
+				overlapDetected = true;
+				std::cout << "OVERLAP!! with " << runArray[c].start << "  " << runArray[c].end << std::endl;
+			}
+			else { // if it is not the first overlaping segment
+
+				// TODO merge blob features in one
+				possibleBlobs[run.associatedPossibleBlob].area += possibleBlobs[runArray[c].associatedPossibleBlob].area;
+				possibleBlobs[runArray[c].associatedPossibleBlob].valid = false;
+
+				runArray[c].associatedPossibleBlob = run.associatedPossibleBlob;
+
+				std::cout << "AND with " << runArray[c].start << "  " << runArray[c].end << std::endl;
+			}
+
+
+		}
+
+	}
+
+	if (!overlapDetected){ // if there was not another segment that overlaps with this one...
+
+		// associate run with a new blob entry
+		run.associatedPossibleBlob = possibleBlobsCounter;
+
+		// set it as valid
+		possibleBlobs[possibleBlobsCounter].valid = true;
+		// set feature values
+		possibleBlobs[possibleBlobsCounter].color = 10;
+		possibleBlobs[possibleBlobsCounter].area = 1;
+		possibleBlobs[possibleBlobsCounter].perimeter = 1;
+
+		possibleBlobsCounter++;
+	}
+
+}
+
+
+void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
+		xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> & dst){
+
+	//initialize structures
+	run runArray1[100];
+	unsigned short i1 = 0;
+	run runArray2[100];
+	unsigned short i2 = 0;
+	bool readingRun = false;
+
+	for(short int j = 0; j < (HEIGHT); j++ ){
+
+		i1 = 0;
+		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
+			//get the pixel brightness value
+			unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
+
+			if (!readingRun && pix == 255){ //start of run detected
+				readingRun = true;
+				runArray1[i1].start = i;
+			}else if(readingRun && pix == 0){ //end of run detected
+				readingRun = false;
+				runArray1[i1].end = i - 1;
+
+				std::cout << "start: " << runArray1[i1].start << "  end: " << runArray1[i1].end << std::endl;
+
+				verify_overlap(i2, runArray2, runArray1[i1]);
+
+				i1++;
+			}
+
+		}
+		if (readingRun){
+			runArray1[i1].end = WIDTH -1;
+			std::cout << "start: " << runArray1[i1].start << "  end: " << runArray1[i1].end << std::endl;
+			verify_overlap(i2, runArray2, runArray1[i1]);
+			readingRun = false;
+			i1++;
+		}
+
+		std::cout << "i1: " << i1 << std::endl;
+
+		j++;
+
+		readingRun = false;
+		i2 = 0;
+		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
+					//get the pixel brightness value
+					unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
+
+					if (!readingRun && pix == 255){ //start of run detected
+						readingRun = true;
+						runArray2[i2].start = i;
+					}else if(readingRun && pix == 0){ //end of run detected
+						readingRun = false;
+						runArray2[i2].end = i;
+
+						std::cout << "start: " << runArray2[i2].start << "  end: " << runArray2[i2].end << std::endl;
+
+						verify_overlap(i1, runArray1, runArray2[i2]);
+
+						i2++;
+					}
+
+				}
+		if (readingRun){
+			runArray2[i2].end = WIDTH -1;
+			readingRun = false;
+			std::cout << "start: " << runArray2[i2].start << "  end: " << runArray2[i2].end << std::endl;
+			verify_overlap(i1, runArray1, runArray2[i2]);
+			i2++;
+		}
+		std::cout << "i2: " << i2 << std::endl;
+
+	}
+	std::cout << "FINISHED!!" << std::endl;
+
+}
+
+
 void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst)
 {
 #pragma HLS INTERFACE axis register both  port=_src
@@ -65,7 +212,9 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 //			DILATE_FILTER_SIZE, DILATE_FILTER_SIZE, DILATE_ITERATIONS, NPIX_BLOBS>(img3, img4, dilation_kernel);
 
 
-	xf::gray2rgb<XF_8UC1, XF_8UC3, HEIGHT, WIDTH, XF_NPPC1>(img0, imgOutput);
+	blob_detection(img0, imgOutput);
+
+	//xf::gray2rgb<XF_8UC1, XF_8UC3, HEIGHT, WIDTH, XF_NPPC1>(img0, imgOutput);
 	xf::xfMat2AXIvideo(imgOutput, _dst);
 
 
