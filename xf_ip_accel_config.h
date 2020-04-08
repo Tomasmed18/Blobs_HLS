@@ -40,8 +40,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*  define the input and output types  */
 #define NPIX_BLOBS XF_NPPC1
 
-#define HEIGHT 2426
 #define WIDTH 2431
+#define HEIGHT 2426
 
 void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst);
 #endif // _XF_IP_ACCEL_CONFIG_H_
