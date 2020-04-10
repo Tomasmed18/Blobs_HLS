@@ -29,29 +29,30 @@ unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0};
 
-struct possibleBlob{
-	//unsigned int color;
+struct blobs{
 	unsigned int area;
 	unsigned int perimeter;
-	bool valid;
+	bool valid = false;
 
 	unsigned int minRow, minCol, maxRow, maxCol;
+
+	unsigned int newBlobReference;
 };
 
 struct run{
 	unsigned short start, end;
-	unsigned short associatedPossibleBlob;
+	unsigned short blobReference;
 };
 
-possibleBlob possibleBlobs[1000];
-unsigned short possibleBlobsCounter = 0;
+blobs blobs[1024];
+unsigned short blobsCounter = 0;
 
-run runArray1[100];
-run runArray2[100];
+run runArray1[64];
+run runArray2[64];
 
 
 
-void verify_overlap_1(unsigned short i, run & run, unsigned int row, unsigned int lastAssociatedBlob = 255){
+void verify_overlap_1(unsigned short i, run & run, unsigned int row){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
 	for(unsigned short c = 0; c < i; c++){
 		if (
@@ -62,59 +63,58 @@ void verify_overlap_1(unsigned short i, run & run, unsigned int row, unsigned in
 
 			if (!overlapDetected){ //if it is its first overlap...
 
-				if (possibleBlobs[runArray1[c].associatedPossibleBlob].valid){
-					run.associatedPossibleBlob = runArray1[c].associatedPossibleBlob; // associate with possible blob from previous line
+				if (blobs[runArray1[c].blobReference].valid){
+					run.blobReference = runArray1[c].blobReference; // associate with possible blob from previous line
 
 					// TODO update possible blob features
-					possibleBlobs[runArray1[c].associatedPossibleBlob].area++;
+					blobs[runArray1[c].blobReference].area++;
 
 					// update blob position values
-					possibleBlobs[runArray1[c].associatedPossibleBlob].maxRow = row;
-					if (run.start < possibleBlobs[runArray1[c].associatedPossibleBlob].minCol)
-						possibleBlobs[runArray1[c].associatedPossibleBlob].minCol = run.start;
-					if (run.end > possibleBlobs[runArray1[c].associatedPossibleBlob].maxCol){
-						possibleBlobs[runArray1[c].associatedPossibleBlob].maxCol = run.end;
+					blobs[runArray1[c].blobReference].maxRow = row;
+					if (run.start < blobs[runArray1[c].blobReference].minCol)
+						blobs[runArray1[c].blobReference].minCol = run.start;
+					if (run.end > blobs[runArray1[c].blobReference].maxCol){
+						blobs[runArray1[c].blobReference].maxCol = run.end;
 					}
 
 
 				}
 				else{
-					run.associatedPossibleBlob = lastAssociatedBlob;
+					run.blobReference = blobs[runArray1[c].blobReference].newBlobReference;
 					// TODO update possible blob features
-					possibleBlobs[lastAssociatedBlob].area++;
+					blobs[run.blobReference].area++;
 
 					//TODO verify position updates
-					possibleBlobs[lastAssociatedBlob].maxRow = row;
-					if (run.start < possibleBlobs[lastAssociatedBlob].minCol)
-						possibleBlobs[lastAssociatedBlob].minCol = run.start;
-					if (run.end > possibleBlobs[lastAssociatedBlob].maxCol)
-						possibleBlobs[lastAssociatedBlob].maxCol = run.end;
+					blobs[run.blobReference].maxRow = row;
+					if (run.start < blobs[run.blobReference].minCol)
+						blobs[run.blobReference].minCol = run.start;
+					if (run.end > blobs[run.blobReference].maxCol)
+						blobs[run.blobReference].maxCol = run.end;
 				}
 
 				overlapDetected = true;
-				std::cout << "OVERLAP!! with " << runArray1[c].start << "  " << runArray1[c].end << std::endl;
 
 			}
 			else { // if it is not the first overlapping segment
 
-				if (run.associatedPossibleBlob != runArray1[c].associatedPossibleBlob){ // and this segment is not already associated with the same blob
+				if (run.blobReference != runArray1[c].blobReference){ // and this segment is not already associated with the same blob
 					// TODO merge blob features in one
-					possibleBlobs[run.associatedPossibleBlob].area += possibleBlobs[runArray1[c].associatedPossibleBlob].area;
-					possibleBlobs[runArray1[c].associatedPossibleBlob].valid = false;
+					blobs[run.blobReference].area += blobs[runArray1[c].blobReference].area;
+					blobs[runArray1[c].blobReference].newBlobReference = run.blobReference;
+					blobs[runArray1[c].blobReference].valid = false;
 
 					// update blob position values
-					if (run.end < possibleBlobs[runArray1[c].associatedPossibleBlob].maxCol)
-						possibleBlobs[run.associatedPossibleBlob].maxCol = possibleBlobs[runArray1[c].associatedPossibleBlob].maxCol;
-					if (possibleBlobs[runArray1[c].associatedPossibleBlob].minRow < possibleBlobs[run.associatedPossibleBlob].minRow)
-						possibleBlobs[run.associatedPossibleBlob].minRow = possibleBlobs[runArray1[c].associatedPossibleBlob].minRow;
-					if (possibleBlobs[runArray1[c].associatedPossibleBlob].minCol < possibleBlobs[run.associatedPossibleBlob].minCol) //TODO see if necessary
-						possibleBlobs[run.associatedPossibleBlob].minCol = possibleBlobs[runArray1[c].associatedPossibleBlob].minCol;
-					if (possibleBlobs[runArray1[c].associatedPossibleBlob].maxCol > possibleBlobs[run.associatedPossibleBlob].maxCol) //TODO see if necessary
-						possibleBlobs[run.associatedPossibleBlob].maxCol = possibleBlobs[runArray1[c].associatedPossibleBlob].maxCol;
+					if (run.end < blobs[runArray1[c].blobReference].maxCol)
+						blobs[run.blobReference].maxCol = blobs[runArray1[c].blobReference].maxCol;
+					if (blobs[runArray1[c].blobReference].minRow < blobs[run.blobReference].minRow)
+						blobs[run.blobReference].minRow = blobs[runArray1[c].blobReference].minRow;
+					if (blobs[runArray1[c].blobReference].minCol < blobs[run.blobReference].minCol) //TODO see if necessary
+						blobs[run.blobReference].minCol = blobs[runArray1[c].blobReference].minCol;
+					if (blobs[runArray1[c].blobReference].maxCol > blobs[run.blobReference].maxCol) //TODO see if necessary
+						blobs[run.blobReference].maxCol = blobs[runArray1[c].blobReference].maxCol;
 
-					runArray1[c].associatedPossibleBlob = run.associatedPossibleBlob;
+					runArray1[c].blobReference = run.blobReference;
 
-					std::cout << "AND with " << runArray1[c].start << "  " << runArray1[c].end << std::endl;
 				}
 			}
 
@@ -126,25 +126,25 @@ void verify_overlap_1(unsigned short i, run & run, unsigned int row, unsigned in
 	if (!overlapDetected){ // if there was not another segment that overlaps with this one...
 
 		// associate run with a new blob entry
-		run.associatedPossibleBlob = possibleBlobsCounter;
+		run.blobReference = blobsCounter;
 
 		// set it as valid
-		possibleBlobs[possibleBlobsCounter].valid = true;
-		// set feature values
-		possibleBlobs[possibleBlobsCounter].area = 1;
-		possibleBlobs[possibleBlobsCounter].perimeter = 1;
+		blobs[blobsCounter].valid = true;
+		// TODO set feature values
+		blobs[blobsCounter].area = 1;
+		blobs[blobsCounter].perimeter = 1;
 		// set position values
-		possibleBlobs[possibleBlobsCounter].minRow = row;
-		possibleBlobs[possibleBlobsCounter].maxRow = row;
-		possibleBlobs[possibleBlobsCounter].minCol = run.start;
-		possibleBlobs[possibleBlobsCounter].maxCol = run.end;
+		blobs[blobsCounter].minRow = row;
+		blobs[blobsCounter].maxRow = row;
+		blobs[blobsCounter].minCol = run.start;
+		blobs[blobsCounter].maxCol = run.end;
 
-		possibleBlobsCounter++;
+		blobsCounter++;
 	}
 
 }
 
-void verify_overlap_2(unsigned short i, run & run, unsigned int row, unsigned int lastAssociatedBlob = 255){
+void verify_overlap_2(unsigned short i, run & run, unsigned int row){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
 	for(unsigned short c = 0; c < i; c++){
 		if (
@@ -155,56 +155,53 @@ void verify_overlap_2(unsigned short i, run & run, unsigned int row, unsigned in
 
 			if (!overlapDetected){ //if it is its first overlap...
 
-				if (possibleBlobs[runArray2[c].associatedPossibleBlob].valid){
-					run.associatedPossibleBlob = runArray2[c].associatedPossibleBlob; // associate with possible blob from previous line
+				if (blobs[runArray2[c].blobReference].valid){
+					run.blobReference = runArray2[c].blobReference; // associate with possible blob from previous line
 
 					// TODO update possible blob features
-					possibleBlobs[runArray2[c].associatedPossibleBlob].area++;
+					blobs[runArray2[c].blobReference].area++;
 
 					// update blob position values
-					possibleBlobs[runArray2[c].associatedPossibleBlob].maxRow = row;
-					if (run.start < possibleBlobs[runArray2[c].associatedPossibleBlob].minCol)
-						possibleBlobs[runArray2[c].associatedPossibleBlob].minCol = run.start;
-					if (run.end > possibleBlobs[runArray2[c].associatedPossibleBlob].maxCol)
-						possibleBlobs[runArray2[c].associatedPossibleBlob].maxCol = run.end;
+					blobs[runArray2[c].blobReference].maxRow = row;
+					if (run.start < blobs[runArray2[c].blobReference].minCol)
+						blobs[runArray2[c].blobReference].minCol = run.start;
+					if (run.end > blobs[runArray2[c].blobReference].maxCol)
+						blobs[runArray2[c].blobReference].maxCol = run.end;
 
 				}
 				else{
-					run.associatedPossibleBlob = lastAssociatedBlob;
+					run.blobReference = blobs[runArray2[c].blobReference].newBlobReference;
 					// TODO update possible blob features
-					possibleBlobs[lastAssociatedBlob].area++;
+					blobs[run.blobReference].area++;
 
 					//TODO verify position updates
-					possibleBlobs[lastAssociatedBlob].maxRow = row;
-					if (run.start < possibleBlobs[lastAssociatedBlob].minCol)
-						possibleBlobs[lastAssociatedBlob].minCol = run.start;
-					if (run.end > possibleBlobs[lastAssociatedBlob].maxCol)
-						possibleBlobs[lastAssociatedBlob].maxCol = run.end;
+					blobs[run.blobReference].maxRow = row;
+					if (run.start < blobs[run.blobReference].minCol)
+						blobs[run.blobReference].minCol = run.start;
+					if (run.end > blobs[run.blobReference].maxCol)
+						blobs[run.blobReference].maxCol = run.end;
 				}
 
-
 				overlapDetected = true;
-				std::cout << "OVERLAP!! with " << runArray2[c].start << "  " << runArray2[c].end << std::endl;
 			}
 			else { // if it is not the first overlapping segment
 
-				if (run.associatedPossibleBlob != runArray2[c].associatedPossibleBlob){ // and this segment is not already associated with the same blob
+				if (run.blobReference != runArray2[c].blobReference){ // and this segment is not already associated with the same blob
 					// TODO merge blob features in one
-					possibleBlobs[run.associatedPossibleBlob].area += possibleBlobs[runArray2[c].associatedPossibleBlob].area;
+					blobs[run.blobReference].area += blobs[runArray2[c].blobReference].area;
 
-					possibleBlobs[runArray2[c].associatedPossibleBlob].valid = false;
+					blobs[runArray2[c].blobReference].newBlobReference = run.blobReference;
+					blobs[runArray2[c].blobReference].valid = false;
 
 					// update blob position values
-					if (possibleBlobs[run.associatedPossibleBlob].maxCol < possibleBlobs[runArray2[c].associatedPossibleBlob].maxCol)
-						possibleBlobs[run.associatedPossibleBlob].maxCol = possibleBlobs[runArray2[c].associatedPossibleBlob].maxCol;
-					if (possibleBlobs[runArray2[c].associatedPossibleBlob].minRow < possibleBlobs[run.associatedPossibleBlob].minRow)
-						possibleBlobs[run.associatedPossibleBlob].minRow = possibleBlobs[runArray2[c].associatedPossibleBlob].minRow;
-					if (possibleBlobs[runArray2[c].associatedPossibleBlob].minCol < possibleBlobs[run.associatedPossibleBlob].minCol) //TODO see if necessary
-						possibleBlobs[run.associatedPossibleBlob].minCol = possibleBlobs[runArray2[c].associatedPossibleBlob].minCol;
+					if (blobs[run.blobReference].maxCol < blobs[runArray2[c].blobReference].maxCol)
+						blobs[run.blobReference].maxCol = blobs[runArray2[c].blobReference].maxCol;
+					if (blobs[runArray2[c].blobReference].minRow < blobs[run.blobReference].minRow)
+						blobs[run.blobReference].minRow = blobs[runArray2[c].blobReference].minRow;
+					if (blobs[runArray2[c].blobReference].minCol < blobs[run.blobReference].minCol) //TODO see if necessary
+						blobs[run.blobReference].minCol = blobs[runArray2[c].blobReference].minCol;
 
-					runArray2[c].associatedPossibleBlob = run.associatedPossibleBlob;
-
-					std::cout << "AND with " << runArray2[c].start << "  " << runArray2[c].end << std::endl;
+					runArray2[c].blobReference = run.blobReference;
 				}
 
 			}
@@ -216,21 +213,21 @@ void verify_overlap_2(unsigned short i, run & run, unsigned int row, unsigned in
 	if (!overlapDetected){ // if there was not another segment that overlaps with this one...
 
 		// associate run with a new blob entry
-		run.associatedPossibleBlob = possibleBlobsCounter;
+		run.blobReference = blobsCounter;
 
 		// set it as valid
-		possibleBlobs[possibleBlobsCounter].valid = true;
-		// set feature values
-		possibleBlobs[possibleBlobsCounter].area = 1;
-		possibleBlobs[possibleBlobsCounter].perimeter = 1;
+		blobs[blobsCounter].valid = true;
+		// TODO set feature values
+		blobs[blobsCounter].area = 1;
+		blobs[blobsCounter].perimeter = 1;
 		// set position values
-		possibleBlobs[possibleBlobsCounter].minRow = row;
-		possibleBlobs[possibleBlobsCounter].maxRow = row;
-		possibleBlobs[possibleBlobsCounter].minCol = run.start;
-		possibleBlobs[possibleBlobsCounter].maxCol = run.end;
+		blobs[blobsCounter].minRow = row;
+		blobs[blobsCounter].maxRow = row;
+		blobs[blobsCounter].minCol = run.start;
+		blobs[blobsCounter].maxCol = run.end;
 
 
-		possibleBlobsCounter++;
+		blobsCounter++;
 	}
 
 }
@@ -246,41 +243,35 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 	bool readingRun = false;
 
 	for(short int j = 0; j < (HEIGHT); j++ ){
-		unsigned int lastAssociatedBlob = 255;
 		i1 = 0;
 		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
 			//get the pixel brightness value
 			unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
 
 			if (!readingRun && pix == 255){ //start of run detected
+
 				readingRun = true;
 				runArray1[i1].start = i;
+
 			}else if(readingRun && pix == 0){ //end of run detected
+
 				readingRun = false;
 				runArray1[i1].end = i - 1;
+				verify_overlap_2(i2, runArray1[i1], j);
 
-				std::cout << "start: " << runArray1[i1].start << "  end: " << runArray1[i1].end << std::endl;
-
-				verify_overlap_2(i2, runArray1[i1], j, lastAssociatedBlob);
-
-				lastAssociatedBlob = runArray1[i1].associatedPossibleBlob;
 				i1++;
 			}
 
 		}
-		if (readingRun){
+		if (readingRun){ // if it was reading a run and it finished at the end of the row
 			runArray1[i1].end = WIDTH -1;
-			std::cout << "start: " << runArray1[i1].start << "  end: " << runArray1[i1].end << std::endl;
 			verify_overlap_2(i2, runArray1[i1], j);
 			readingRun = false;
 			i1++;
 		}
 
-		std::cout << "i1: " << i1 << std::endl;
-
 		j++;
 
-		lastAssociatedBlob = 255;
 		readingRun = false;
 		i2 = 0;
 		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
@@ -288,32 +279,28 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 					unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
 
 					if (!readingRun && pix == 255){ //start of run detected
+
 						readingRun = true;
 						runArray2[i2].start = i;
+
 					}else if(readingRun && pix == 0){ //end of run detected
+
 						readingRun = false;
 						runArray2[i2].end = i - 1;
+						verify_overlap_1(i1, runArray2[i2], j);
 
-						std::cout << "start: " << runArray2[i2].start << "  end: " << runArray2[i2].end << std::endl;
-
-						verify_overlap_1(i1, runArray2[i2], j, lastAssociatedBlob);
-
-						lastAssociatedBlob = runArray2[i2].associatedPossibleBlob;
 						i2++;
 					}
 
 				}
-		if (readingRun){
+		if (readingRun){ // if it was reading a run and it finished at the end of the row
 			runArray2[i2].end = WIDTH -1;
 			readingRun = false;
-			std::cout << "start: " << runArray2[i2].start << "  end: " << runArray2[i2].end << std::endl;
 			verify_overlap_1(i1, runArray2[i2], j);
 			i2++;
 		}
-		std::cout << "i2: " << i2 << std::endl;
 
 	}
-	std::cout << "FINISHED!!" << std::endl;
 
 }
 
@@ -360,19 +347,19 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 
 
 
-	for (int i = 0; i < possibleBlobsCounter; i++){
-		if (possibleBlobs[i].valid){
-			std::cout << "minRow: " << possibleBlobs[i].minRow <<
-					"  maxRow: " << possibleBlobs[i].maxRow <<
-					"  minCol: " << possibleBlobs[i].minCol <<
-					"  maxCol: " << possibleBlobs[i].maxCol << std::endl;
-			for (int j = possibleBlobs[i].minRow; j <= possibleBlobs[i].maxRow; j++){
-				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(possibleBlobs[i].minCol)] = 0xFF00FF;
-				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(possibleBlobs[i].maxCol)] = 0xFF00FF;
+	for (int i = 0; i < blobsCounter; i++){
+		if (blobs[i].valid){
+			std::cout << "minRow: " << blobs[i].minRow <<
+					"  maxRow: " << blobs[i].maxRow <<
+					"  minCol: " << blobs[i].minCol <<
+					"  maxCol: " << blobs[i].maxCol << std::endl;
+			for (int j = blobs[i].minRow; j <= blobs[i].maxRow; j++){
+				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].minCol)] = 0xFF00FF;
+				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].maxCol)] = 0xFF00FF;
 			}
-			for (int j = possibleBlobs[i].minCol; j <= possibleBlobs[i].maxCol; j++){
-				imgInput.data[(possibleBlobs[i].minRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0xFF00FF;
-				imgInput.data[(possibleBlobs[i].maxRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0xFF00FF;
+			for (int j = blobs[i].minCol; j <= blobs[i].maxCol; j++){
+				imgInput.data[(blobs[i].minRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0xFF00FF;
+				imgInput.data[(blobs[i].maxRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0xFF00FF;
 			}
 
 		}
