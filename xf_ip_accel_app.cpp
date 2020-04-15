@@ -31,7 +31,7 @@ unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,
 
 struct blobs{
 	unsigned int area;
-	unsigned int perimeter;
+	//unsigned int perimeter;
 	bool valid = false;
 
 	unsigned int minRow, minCol, maxRow, maxCol;
@@ -51,7 +51,6 @@ run runArray1[64];
 run runArray2[64];
 
 
-
 void verify_overlap_1(unsigned short i, run & run, unsigned int row){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
 	for(unsigned short c = 0; c < i; c++){
@@ -67,7 +66,7 @@ void verify_overlap_1(unsigned short i, run & run, unsigned int row){
 					run.blobReference = runArray1[c].blobReference; // associate with possible blob from previous line
 
 					// TODO update possible blob features
-					blobs[runArray1[c].blobReference].area++;
+					blobs[run.blobReference].area += run.end - run.start + 1;
 
 					// update blob position values
 					blobs[runArray1[c].blobReference].maxRow = row;
@@ -81,10 +80,10 @@ void verify_overlap_1(unsigned short i, run & run, unsigned int row){
 				}
 				else{
 					run.blobReference = blobs[runArray1[c].blobReference].newBlobReference;
-					// TODO update possible blob features
-					blobs[run.blobReference].area++;
+					//  update possible blob features
+					blobs[run.blobReference].area += run.end - run.start + 1;
 
-					//TODO verify position updates
+					// TODO verify position updates
 					blobs[run.blobReference].maxRow = row;
 					if (run.start < blobs[run.blobReference].minCol)
 						blobs[run.blobReference].minCol = run.start;
@@ -97,8 +96,9 @@ void verify_overlap_1(unsigned short i, run & run, unsigned int row){
 			}
 			else { // if it is not the first overlapping segment
 
-				if (run.blobReference != runArray1[c].blobReference){ // and this segment is not already associated with the same blob
-					// TODO merge blob features in one
+				if ((run.blobReference != runArray1[c].blobReference) // and this segment is not already associated with the same blob
+						&& (blobs[runArray1[c].blobReference].valid)){
+					// merge blob features in one
 					blobs[run.blobReference].area += blobs[runArray1[c].blobReference].area;
 					blobs[runArray1[c].blobReference].newBlobReference = run.blobReference;
 					blobs[runArray1[c].blobReference].valid = false;
@@ -130,9 +130,9 @@ void verify_overlap_1(unsigned short i, run & run, unsigned int row){
 
 		// set it as valid
 		blobs[blobsCounter].valid = true;
-		// TODO set feature values
-		blobs[blobsCounter].area = 1;
-		blobs[blobsCounter].perimeter = 1;
+		// set feature values
+		blobs[blobsCounter].area = run.end - run.start + 1;
+
 		// set position values
 		blobs[blobsCounter].minRow = row;
 		blobs[blobsCounter].maxRow = row;
@@ -156,10 +156,10 @@ void verify_overlap_2(unsigned short i, run & run, unsigned int row){
 			if (!overlapDetected){ //if it is its first overlap...
 
 				if (blobs[runArray2[c].blobReference].valid){
-					run.blobReference = runArray2[c].blobReference; // associate with possible blob from previous line
+					run.blobReference = runArray2[c].blobReference;
 
-					// TODO update possible blob features
-					blobs[runArray2[c].blobReference].area++;
+					// update blob features
+					blobs[run.blobReference].area += run.end - run.start + 1;
 
 					// update blob position values
 					blobs[runArray2[c].blobReference].maxRow = row;
@@ -171,8 +171,8 @@ void verify_overlap_2(unsigned short i, run & run, unsigned int row){
 				}
 				else{
 					run.blobReference = blobs[runArray2[c].blobReference].newBlobReference;
-					// TODO update possible blob features
-					blobs[run.blobReference].area++;
+					// update blob features
+					blobs[run.blobReference].area += run.end - run.start + 1;
 
 					//TODO verify position updates
 					blobs[run.blobReference].maxRow = row;
@@ -186,8 +186,9 @@ void verify_overlap_2(unsigned short i, run & run, unsigned int row){
 			}
 			else { // if it is not the first overlapping segment
 
-				if (run.blobReference != runArray2[c].blobReference){ // and this segment is not already associated with the same blob
-					// TODO merge blob features in one
+				if ((run.blobReference != runArray2[c].blobReference) // and this segment is not already associated with the same blob
+						&& (blobs[runArray2[c].blobReference].valid)){
+					// merge blob features in one
 					blobs[run.blobReference].area += blobs[runArray2[c].blobReference].area;
 
 					blobs[runArray2[c].blobReference].newBlobReference = run.blobReference;
@@ -217,9 +218,8 @@ void verify_overlap_2(unsigned short i, run & run, unsigned int row){
 
 		// set it as valid
 		blobs[blobsCounter].valid = true;
-		// TODO set feature values
-		blobs[blobsCounter].area = 1;
-		blobs[blobsCounter].perimeter = 1;
+		// set feature values
+		blobs[blobsCounter].area = run.end - run.start + 1;
 		// set position values
 		blobs[blobsCounter].minRow = row;
 		blobs[blobsCounter].maxRow = row;
@@ -241,12 +241,15 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 	unsigned short i2 = 0;
 
 	bool readingRun = false;
+	int whitePixelsRead = 0;
 
 	for(short int j = 0; j < (HEIGHT); j++ ){
 		i1 = 0;
 		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
 			//get the pixel brightness value
 			unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
+			if (pix == 255)
+				whitePixelsRead++;
 
 			if (!readingRun && pix == 255){ //start of run detected
 
@@ -258,7 +261,6 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 				readingRun = false;
 				runArray1[i1].end = i - 1;
 				verify_overlap_2(i2, runArray1[i1], j);
-
 				i1++;
 			}
 
@@ -277,6 +279,8 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
 					//get the pixel brightness value
 					unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
+					if (pix == 255)
+						whitePixelsRead++;
 
 					if (!readingRun && pix == 255){ //start of run detected
 
@@ -288,7 +292,6 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 						readingRun = false;
 						runArray2[i2].end = i - 1;
 						verify_overlap_1(i1, runArray2[i2], j);
-
 						i2++;
 					}
 
@@ -349,17 +352,28 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 
 	for (int i = 0; i < blobsCounter; i++){
 		if (blobs[i].valid){
-			std::cout << "minRow: " << blobs[i].minRow <<
+			int areaCount = 0;
+			for (int row = blobs[i].minRow; row <= blobs[i].maxRow; row++)
+				for (int col = blobs[i].minCol; col <= blobs[i].maxCol; col++)
+					if (img0.data[row*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+col] > 200)
+						areaCount++;
+			std::cout << i << " --> minRow: " << blobs[i].minRow <<
 					"  maxRow: " << blobs[i].maxRow <<
 					"  minCol: " << blobs[i].minCol <<
 					"  maxCol: " << blobs[i].maxCol << std::endl;
+
+
+			std::cout << "areaCount --> " << areaCount << std::endl;
+			std::cout << "area      --> " << blobs[i].area << std::endl << std::endl;
+
+
 			for (int j = blobs[i].minRow; j <= blobs[i].maxRow; j++){
-				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].minCol)] = 0xFF00FF;
-				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].maxCol)] = 0xFF00FF;
+				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].minCol)] = 0x00FF00;
+				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].maxCol)] = 0x00FF00;
 			}
 			for (int j = blobs[i].minCol; j <= blobs[i].maxCol; j++){
-				imgInput.data[(blobs[i].minRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0xFF00FF;
-				imgInput.data[(blobs[i].maxRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0xFF00FF;
+				imgInput.data[(blobs[i].minRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
+				imgInput.data[(blobs[i].maxRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
 			}
 
 		}
