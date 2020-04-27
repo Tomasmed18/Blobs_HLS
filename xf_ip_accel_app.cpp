@@ -29,7 +29,7 @@ unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0};
 
-struct blobs{
+struct Blob{
 	unsigned int area;
 	//unsigned int perimeter;
 	bool valid = false;
@@ -39,19 +39,19 @@ struct blobs{
 	unsigned int newBlobReference;
 };
 
-struct run{
+struct Run{
 	unsigned short start, end;
 	unsigned short blobReference;
 };
 
-blobs blobs[1024];
+Blob blobs[1024];
 unsigned short blobsCounter = 0;
 
-run runArray1[64];
-run runArray2[64];
+Run runArray1[64];
+Run runArray2[64];
 
 
-void verify_overlap_1(unsigned short i, run & run, unsigned int row){
+void verify_overlap_1(unsigned short i, Run & run, unsigned int row){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
 	for(unsigned short c = 0; c < i; c++){
 		if (
@@ -144,7 +144,7 @@ void verify_overlap_1(unsigned short i, run & run, unsigned int row){
 
 }
 
-void verify_overlap_2(unsigned short i, run & run, unsigned int row){
+void verify_overlap_2(unsigned short i, Run & run, unsigned int row){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
 	for(unsigned short c = 0; c < i; c++){
 		if (
@@ -233,23 +233,19 @@ void verify_overlap_2(unsigned short i, run & run, unsigned int row){
 }
 
 
-void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
-		xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> & dst){
+void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src){
 
 	//initialize counters
 	unsigned short i1 = 0;
 	unsigned short i2 = 0;
 
 	bool readingRun = false;
-	int whitePixelsRead = 0;
 
 	for(short int j = 0; j < (HEIGHT); j++ ){
 		i1 = 0;
 		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
 			//get the pixel brightness value
 			unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
-			if (pix == 255)
-				whitePixelsRead++;
 
 			if (!readingRun && pix == 255){ //start of run detected
 
@@ -279,8 +275,6 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
 					//get the pixel brightness value
 					unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
-					if (pix == 255)
-						whitePixelsRead++;
 
 					if (!readingRun && pix == 255){ //start of run detected
 
@@ -305,6 +299,35 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src,
 
 	}
 
+}
+
+float getCircleAreaValue(unsigned int r){
+	// TODO: implement table with precalculated values
+	return (1.0 / (3.1415 * r * r)); // 1 / (PI * r^2)
+}
+
+void blob_classification(){
+	// TODO: add Loop-Unrolling
+	for (int i = 0; i < blobsCounter; i++){
+		Blob b = blobs[i];
+		if (b.valid){
+			if (b.area > MIN_BLOB_AREA){
+
+				unsigned int blobHeight = (b.maxCol - b.minCol);
+				unsigned int blobWidth = (b.maxRow - b.minRow);
+
+				unsigned int blobRadius = blobHeight > blobWidth ? blobHeight/2 : blobWidth/2; //set radius to the highest length divided by 2
+
+				float blobInverseRoundness = b.area * getCircleAreaValue(blobRadius);
+
+				std::cout << i << " = " << blobInverseRoundness << std::endl;
+
+				if (blobInverseRoundness < MIN_BLOB_ROUNDNESS)
+					blobs[i].valid = false;
+			} else
+				blobs[i].valid = false;
+		}
+	}
 }
 
 
@@ -346,9 +369,9 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 
 
 
-	blob_detection(img0, imgOutput);
+	blob_detection(img0);
 
-
+	blob_classification();
 
 	for (int i = 0; i < blobsCounter; i++){
 		if (blobs[i].valid){

@@ -43,5 +43,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define WIDTH 2431
 #define HEIGHT 2426
 
+#define MIN_BLOB_AREA 500
+#define MIN_BLOB_ROUNDNESS 0.6
+
 void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst);
 #endif // _XF_IP_ACCEL_CONFIG_H_
