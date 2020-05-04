@@ -9,7 +9,7 @@
 
 #define MAX_BLOB_RADIUS 200
 
-const float circleAreaValues[ MAX_BLOB_RADIUS ] = { 0, //Added 0 to avoid looking for r-1 in the table
+const ap_fixed<22, 2> circleAreaValues[ MAX_BLOB_RADIUS ] = { 0, //Added 0 to avoid looking for r-1 in the table
       0.3183098861837907 , 0.07957747154594767 , 0.0353677651315323 , 0.019894367886486918 , 0.012732395447351627 , 0.008841941282883075 , 0.00649612012619981 , 0.0049735919716217296 , 0.003929751681281367 , 0.0031830988618379067 ,0.0026306602163949644 , 0.002210485320720769 , 0.0018834904507916608 , 0.0016240300315499526 , 0.001414710605261292 , 0.0012433979929054324 , 0.0011014182912933933 , 0.0009824379203203417 , 0.0008817448370742125 , 0.0007957747154594767 ,      0.0007217911251333121 , 0.0006576650540987411 , 0.0006017200116895854 , 0.0005526213301801922 , 0.0005092958178940651 , 0.0004708726126979152 , 0.00043663907569792965 , 0.00040600750788748815 , 0.0003784897576501673 , 0.000353677651315323 , 0.00033122776918188417 , 0.0003108494982263581 , 0.00029229557959944047 , 0.00027535457282334833 , 0.00025984480504799237 , 0.0002456094800800854 , 0.0002325126999151137 , 0.00022043620926855313 , 0.000209276716754629 , 0.00019894367886486917 ,      0.0001893574575751283 , 0.00018044778128332802 ,
 	  0.0001721524533173557 , 0.00016441626352468527 , 0.00015719006725125465 , 0.00015043000292239636 , 0.0001440968248908061 , 0.00013815533254504805 , 0.00013257388012652673 , 0.00012732395447351627 ,      0.00012237981014371038 , 0.0001177181531744788 , 0.00011331786620996464 , 0.00010915976892448241 , 0.00010522640865579856 , 0.00010150187697187204 , 9.797164856380138e-05 , 9.462243941254182e-05 , 9.144208163854946e-05 , 8.841941282883075e-05 ,      8.554417795855702e-05 , 8.280694229547104e-05 , 8.019901390370136e-05 , 7.771237455658952e-05 , 7.533961803166644e-05 , 7.307389489986012e-05 , 7.090886303938309e-05 , 6.883864320583708e-05 , 6.68577790766206e-05 , 6.496120126199809e-05 ,
       6.31441948390777e-05 , 6.140237002002136e-05 , 5.973163561339665e-05 , 5.8128174978778425e-05 , 5.658842421045167e-05 , 5.510905231713828e-05 , 5.3686943191733965e-05 , 5.231917918865725e-05 , 5.100302614705827e-05 , 4.973591971621729e-05 ,      4.851545285532552e-05 , 4.733936439378208e-05 , 4.620552855041235e-05 , 4.5111945320832005e-05 , 4.405673165173574e-05 , 4.3038113329338925e-05 , 4.2054417516685254e-05 , 4.110406588117132e-05 , 4.018556825953675e-05 , 3.929751681281366e-05 ,      3.843858062840124e-05 , 3.760750073059909e-05 , 3.68030854646538e-05 , 3.6024206222701526e-05 , 3.5269793482968496e-05 , 3.453883313626201e-05 , 3.383036307618139e-05 , 3.314347003163168e-05 , 3.247728662216005e-05 , 3.183098861837907e-05 ,      3.120379239131366e-05 , 3.0594952535927595e-05 , 3.0003759655367206e-05 , 2.94295382936197e-05 , 2.887164500533249e-05 , 2.832946655249116e-05 , 2.7802418218516085e-05 , 2.7289942231120603e-05 , 2.6791506285985244e-05 , 2.630660216394964e-05 ,
@@ -22,9 +22,9 @@ const float circleAreaValues[ MAX_BLOB_RADIUS ] = { 0, //Added 0 to avoid lookin
 #define ERODE_FILTER_SIZE 7
 unsigned char erode_kernel[ERODE_FILTER_SIZE*ERODE_FILTER_SIZE] ={0,0,0,1,0,0,0,
 												0,0,0,1,0,0,0,
-												0,0,0,1,0,0,0,
+												0,0,1,1,1,0,0,//	0,0,0,1,0,0,0,
 												1,1,1,1,1,1,1,
-												0,0,0,1,0,0,0,
+												0,0,1,1,1,0,0, //0,0,0,1,0,0,0,
 												0,0,0,1,0,0,0,
 												0,0,0,1,0,0,0};
 
@@ -33,37 +33,45 @@ unsigned char erode_kernel[ERODE_FILTER_SIZE*ERODE_FILTER_SIZE] ={0,0,0,1,0,0,0,
 #define DILATE_FILTER_SIZE 11
 unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0,
-																			0,0,0,0,0,1,0,0,0,0,0,
+																			0,0,0,0,1,1,1,0,0,0,0, //0,0,0,0,0,1,0,0,0,0,0,
 																			1,1,1,1,1,1,1,1,1,1,1,
-																			0,0,0,0,0,1,0,0,0,0,0,
+																			0,0,0,0,1,1,1,0,0,0,0, //0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0};
 
+#define AREA_TYPE ap_uint<20>
+#define COORDINATE_TYPE ap_uint<12>
+#define MAX_BLOBS 1024
+#define BLOB_REFERENCE_TYPE ap_uint<10>
+#define MAX_RUNS 64
+#define RUN_REFERENCE_TYPE ap_uint<6>
+
+
 struct Blob{
-	unsigned int area;
+	AREA_TYPE area;
 	//unsigned int perimeter;
 	bool valid = false;
 
-	unsigned int minRow, minCol, maxRow, maxCol;
+	COORDINATE_TYPE minRow, minCol, maxRow, maxCol;
 
-	unsigned int newBlobReference;
+	BLOB_REFERENCE_TYPE newBlobReference;
 };
 
 struct Run{
-	unsigned short start, end;
-	unsigned short blobReference;
+	COORDINATE_TYPE start, end;
+	BLOB_REFERENCE_TYPE blobReference;
 };
 
-Blob blobs[1024];
-unsigned short blobsCounter = 0;
+Blob blobs[MAX_BLOBS];
+BLOB_REFERENCE_TYPE blobsCounter = 0;
 
-Run runArray1[64];
-Run runArray2[64];
+Run runArray1[MAX_RUNS];
+Run runArray2[MAX_RUNS];
 
 
-void verify_overlap_1(unsigned short i, Run & run, unsigned int row){
+void verify_overlap_1(BLOB_REFERENCE_TYPE i, Run & run, COORDINATE_TYPE row){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
-	for(unsigned short c = 0; c < i; c++){
+	for(BLOB_REFERENCE_TYPE c = 0; c < i; c++){
 		if (
 			((runArray1[c].start <= run.start) && (runArray1[c].end >= run.start)) ||
 			((runArray1[c].start <= run.end) && (runArray1[c].end >= run.end)) ||
@@ -154,9 +162,9 @@ void verify_overlap_1(unsigned short i, Run & run, unsigned int row){
 
 }
 
-void verify_overlap_2(unsigned short i, Run & run, unsigned int row){
+void verify_overlap_2(RUN_REFERENCE_TYPE i, Run & run, COORDINATE_TYPE row){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
-	for(unsigned short c = 0; c < i; c++){
+	for(RUN_REFERENCE_TYPE c = 0; c < i; c++){
 		if (
 			((runArray2[c].start <= run.start) && (runArray2[c].end >= run.start)) ||
 			((runArray2[c].start <= run.end) && (runArray2[c].end >= run.end)) ||
@@ -246,14 +254,14 @@ void verify_overlap_2(unsigned short i, Run & run, unsigned int row){
 void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src){
 
 	//initialize counters
-	unsigned short i1 = 0;
-	unsigned short i2 = 0;
+	RUN_REFERENCE_TYPE i1 = 0;
+	RUN_REFERENCE_TYPE i2 = 0;
 
 	bool readingRun = false;
 
-	for(short int j = 0; j < (HEIGHT); j++ ){
+	for(COORDINATE_TYPE j = 0; j < (HEIGHT); j++ ){
 		i1 = 0;
-		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
+		for(COORDINATE_TYPE i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
 			//get the pixel brightness value
 			unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
 
@@ -282,7 +290,7 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src){
 
 		readingRun = false;
 		i2 = 0;
-		for(short int i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
+		for(COORDINATE_TYPE i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
 					//get the pixel brightness value
 					unsigned char pix = src.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+i];
 
@@ -326,14 +334,14 @@ void blob_classification(){
 		if (b.valid){
 			if (b.area > MIN_BLOB_AREA){
 
-				unsigned int blobHeight = (b.maxCol - b.minCol);
-				unsigned int blobWidth = (b.maxRow - b.minRow);
+				COORDINATE_TYPE blobHeight = (b.maxCol - b.minCol);
+				COORDINATE_TYPE blobWidth = (b.maxRow - b.minRow);
 
-				unsigned int blobRadius = blobHeight > blobWidth ? blobHeight/2 : blobWidth/2; //set radius to the highest length divided by 2
+				COORDINATE_TYPE blobRadius = blobHeight > blobWidth ? blobHeight/2 : blobWidth/2; //set radius to the highest length divided by 2
 
-				float blobInverseRoundness = b.area * getCircleAreaValue(blobRadius);
+				ap_fixed<20, 2> blobInverseRoundness = b.area * getCircleAreaValue(blobRadius);
 
-				std::cout << i << " = " << blobInverseRoundness << std::endl;
+				//std::cout << i << " = " << blobInverseRoundness << std::endl;
 
 				if (blobInverseRoundness < MIN_BLOB_ROUNDNESS)
 					blobs[i].valid = false;
@@ -355,6 +363,8 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img2(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img3(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4(HEIGHT, WIDTH); //GRAY
+	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4_a(HEIGHT, WIDTH); //GRAY
+	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4_b(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> imgOutput(HEIGHT, WIDTH); //RGB
 
 
@@ -364,6 +374,8 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 #pragma HLS stream variable=img2.data dim=1 depth=1
 #pragma HLS stream variable=img3.data dim=1 depth=1
 #pragma HLS stream variable=img4.data dim=1 depth=1
+#pragma HLS stream variable=img4_a.data dim=1 depth=1
+#pragma HLS stream variable=img4_b.data dim=1 depth=1
 #pragma HLS stream variable=imgOutputput.data dim=1 depth=1
 	#pragma HLS dataflow
 
@@ -373,43 +385,45 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 	xf::rgb2gray<XF_8UC3, XF_8UC1, HEIGHT, WIDTH, XF_NPPC1>(imgInput, img0);
 
 
-//	xf::Threshold<XF_THRESHOLD_TYPE_BINARY, XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img0, img1, 118, 255);
-//	xf::bitwise_not<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img1, img2);
-//	xf::erode<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
-//		ERODE_FILTER_SIZE, ERODE_FILTER_SIZE, ERODE_ITERATIONS, NPIX_BLOBS>(img2, img3, erode_kernel);
-//	xf::dilate<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
-//			DILATE_FILTER_SIZE, DILATE_FILTER_SIZE, DILATE_ITERATIONS, NPIX_BLOBS>(img3, img4, dilation_kernel);
+	xf::Threshold<XF_THRESHOLD_TYPE_BINARY, XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img0, img1, 118, 255);
+	xf::bitwise_not<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img1, img2);
+	xf::erode<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
+		ERODE_FILTER_SIZE, ERODE_FILTER_SIZE, ERODE_ITERATIONS, NPIX_BLOBS>(img2, img3, erode_kernel);
+	xf::dilate<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
+			DILATE_FILTER_SIZE, DILATE_FILTER_SIZE, DILATE_ITERATIONS, NPIX_BLOBS>(img3, img4, dilation_kernel);
 
+	xf::duplicateMat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img4, img4_a, img4_b);
 
-
-	blob_detection(img0);
+	blob_detection(img4_a);
 
 	blob_classification();
 
-	for (int i = 0; i < blobsCounter; i++){
+	xf::gray2rgb<XF_8UC1, XF_8UC3, HEIGHT, WIDTH, XF_NPPC1>(img4_b, imgOutput);
+
+	for (BLOB_REFERENCE_TYPE i = 0; i < blobsCounter; i++){
 		if (blobs[i].valid){
-			int areaCount = 0;
-			for (int row = blobs[i].minRow; row <= blobs[i].maxRow; row++)
-				for (int col = blobs[i].minCol; col <= blobs[i].maxCol; col++)
-					if (img0.data[row*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+col] > 200)
-						areaCount++;
-			std::cout << i << " --> minRow: " << blobs[i].minRow <<
-					"  maxRow: " << blobs[i].maxRow <<
-					"  minCol: " << blobs[i].minCol <<
-					"  maxCol: " << blobs[i].maxCol << std::endl;
+//			int areaCount = 0;
+//			for (int row = blobs[i].minRow; row <= blobs[i].maxRow; row++)
+//				for (int col = blobs[i].minCol; col <= blobs[i].maxCol; col++)
+//					if (img0.data[row*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+col] > 200)
+//						areaCount++;
+//			std::cout << i << " --> minRow: " << blobs[i].minRow <<
+//					"  maxRow: " << blobs[i].maxRow <<
+//					"  minCol: " << blobs[i].minCol <<
+//					"  maxCol: " << blobs[i].maxCol << std::endl;
+//
+//
+//			std::cout << "areaCount --> " << areaCount << std::endl;
+//			std::cout << "area      --> " << blobs[i].area << std::endl << std::endl;
 
 
-			std::cout << "areaCount --> " << areaCount << std::endl;
-			std::cout << "area      --> " << blobs[i].area << std::endl << std::endl;
-
-
-			for (int j = blobs[i].minRow; j <= blobs[i].maxRow; j++){
-				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].minCol)] = 0x00FF00;
-				imgInput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].maxCol)] = 0x00FF00;
+			for (COORDINATE_TYPE j = blobs[i].minRow; j <= blobs[i].maxRow; j++){
+				imgOutput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].minCol)] = 0x00FF00;
+				imgOutput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].maxCol)] = 0x00FF00;
 			}
-			for (int j = blobs[i].minCol; j <= blobs[i].maxCol; j++){
-				imgInput.data[(blobs[i].minRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
-				imgInput.data[(blobs[i].maxRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
+			for (COORDINATE_TYPE j = blobs[i].minCol; j <= blobs[i].maxCol; j++){
+				imgOutput.data[(blobs[i].minRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
+				imgOutput.data[(blobs[i].maxRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
 			}
 
 		}
@@ -418,7 +432,7 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 
 
 	//xf::gray2rgb<XF_8UC1, XF_8UC3, HEIGHT, WIDTH, XF_NPPC1>(img0, imgOutput);
-	xf::xfMat2AXIvideo(imgInput, _dst);
+	xf::xfMat2AXIvideo(imgOutput, _dst);
 
 
 }

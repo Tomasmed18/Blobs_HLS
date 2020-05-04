@@ -31,6 +31,7 @@
 #define _XF_HEADERS_H_
 
 #include "ap_int.h"
+#include "ap_fixed.h"
 #include "common/xf_structs.h"
 #include "common/xf_axi_sdata.h"
 #include "common/xf_infra.h"
