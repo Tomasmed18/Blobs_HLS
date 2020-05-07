@@ -1,13 +1,7 @@
 #include "xf_ip_accel_config.h"
+#include "xf_ip_accel_types.h"
+#include "xf_ip_accel_structs.h"
 
-#include "imgproc/xf_cvt_color.hpp"
-#include "imgproc/xf_duplicateimage.hpp"
-#include "imgproc/xf_threshold.hpp"
-#include "core/xf_arithm.hpp"
-#include "imgproc/xf_erosion.hpp"
-#include "imgproc/xf_dilation.hpp"
-
-#define MAX_BLOB_RADIUS 200
 
 const ap_fixed<22, 2> circleAreaValues[ MAX_BLOB_RADIUS ] = { 0, //Added 0 to avoid looking for r-1 in the table
       0.3183098861837907 , 0.07957747154594767 , 0.0353677651315323 , 0.019894367886486918 , 0.012732395447351627 , 0.008841941282883075 , 0.00649612012619981 , 0.0049735919716217296 , 0.003929751681281367 , 0.0031830988618379067 ,0.0026306602163949644 , 0.002210485320720769 , 0.0018834904507916608 , 0.0016240300315499526 , 0.001414710605261292 , 0.0012433979929054324 , 0.0011014182912933933 , 0.0009824379203203417 , 0.0008817448370742125 , 0.0007957747154594767 ,      0.0007217911251333121 , 0.0006576650540987411 , 0.0006017200116895854 , 0.0005526213301801922 , 0.0005092958178940651 , 0.0004708726126979152 , 0.00043663907569792965 , 0.00040600750788748815 , 0.0003784897576501673 , 0.000353677651315323 , 0.00033122776918188417 , 0.0003108494982263581 , 0.00029229557959944047 , 0.00027535457282334833 , 0.00025984480504799237 , 0.0002456094800800854 , 0.0002325126999151137 , 0.00022043620926855313 , 0.000209276716754629 , 0.00019894367886486917 ,      0.0001893574575751283 , 0.00018044778128332802 ,
@@ -18,8 +12,6 @@ const ap_fixed<22, 2> circleAreaValues[ MAX_BLOB_RADIUS ] = { 0, //Added 0 to av
 
 
 
-#define ERODE_ITERATIONS 10
-#define ERODE_FILTER_SIZE 7
 unsigned char erode_kernel[ERODE_FILTER_SIZE*ERODE_FILTER_SIZE] ={0,0,0,1,0,0,0,
 												0,0,0,1,0,0,0,
 												0,0,1,1,1,0,0,//	0,0,0,1,0,0,0,
@@ -29,8 +21,6 @@ unsigned char erode_kernel[ERODE_FILTER_SIZE*ERODE_FILTER_SIZE] ={0,0,0,1,0,0,0,
 												0,0,0,1,0,0,0};
 
 
-#define DILATE_ITERATIONS 10
-#define DILATE_FILTER_SIZE 11
 unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,1,1,1,0,0,0,0, //0,0,0,0,0,1,0,0,0,0,0,
@@ -39,65 +29,39 @@ unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0,
 																			0,0,0,0,0,1,0,0,0,0,0};
 
-#define AREA_TYPE ap_uint<20>
-#define COORDINATE_TYPE ap_uint<12>
-#define MAX_BLOBS 1024
-#define BLOB_REFERENCE_TYPE ap_uint<10>
-#define MAX_RUNS 64
-#define RUN_REFERENCE_TYPE ap_uint<6>
 
 
-struct Blob{
-	AREA_TYPE area;
-	//unsigned int perimeter;
-	bool valid = false;
-
-	COORDINATE_TYPE minRow, minCol, maxRow, maxCol;
-
-	BLOB_REFERENCE_TYPE newBlobReference;
-};
-
-struct Run{
-	COORDINATE_TYPE start, end;
-	BLOB_REFERENCE_TYPE blobReference;
-};
-
-Blob blobs[MAX_BLOBS];
-BLOB_REFERENCE_TYPE blobsCounter = 0;
-
-Run runArray1[MAX_RUNS];
-Run runArray2[MAX_RUNS];
 
 
-void verify_overlap_1(BLOB_REFERENCE_TYPE i, Run & run, COORDINATE_TYPE row){
+void verify_overlap(BLOB_REFERENCE_TYPE i, Run (&runArray)[MAX_RUNS], Run & run, COORDINATE_TYPE row, Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE & blobsCounter){
 	bool overlapDetected = false; //to control if its the first overlap detected or not
 	for(BLOB_REFERENCE_TYPE c = 0; c < i; c++){
 		if (
-			((runArray1[c].start <= run.start) && (runArray1[c].end >= run.start)) ||
-			((runArray1[c].start <= run.end) && (runArray1[c].end >= run.end)) ||
-			((runArray1[c].start >= run.start) && (runArray1[c].end <= run.end)) )
+			((runArray[c].start <= run.start) && (runArray[c].end >= run.start)) ||
+			((runArray[c].start <= run.end) && (runArray[c].end >= run.end)) ||
+			((runArray[c].start >= run.start) && (runArray[c].end <= run.end)) )
 			{
 
 			if (!overlapDetected){ //if it is its first overlap...
 
-				if (blobs[runArray1[c].blobReference].valid){
-					run.blobReference = runArray1[c].blobReference; // associate with possible blob from previous line
+				if (blobs[runArray[c].blobReference].valid){
+					run.blobReference = runArray[c].blobReference; // associate with possible blob from previous line
 
 					// TODO update possible blob features
 					blobs[run.blobReference].area += run.end - run.start + 1;
 
 					// update blob position values
-					blobs[runArray1[c].blobReference].maxRow = row;
-					if (run.start < blobs[runArray1[c].blobReference].minCol)
-						blobs[runArray1[c].blobReference].minCol = run.start;
-					if (run.end > blobs[runArray1[c].blobReference].maxCol){
-						blobs[runArray1[c].blobReference].maxCol = run.end;
+					blobs[runArray[c].blobReference].maxRow = row;
+					if (run.start < blobs[runArray[c].blobReference].minCol)
+						blobs[runArray[c].blobReference].minCol = run.start;
+					if (run.end > blobs[runArray[c].blobReference].maxCol){
+						blobs[runArray[c].blobReference].maxCol = run.end;
 					}
 
 
 				}
 				else{
-					run.blobReference = blobs[runArray1[c].blobReference].newBlobReference;
+					run.blobReference = blobs[runArray[c].blobReference].newBlobReference;
 					//  update possible blob features
 					blobs[run.blobReference].area += run.end - run.start + 1;
 
@@ -114,24 +78,24 @@ void verify_overlap_1(BLOB_REFERENCE_TYPE i, Run & run, COORDINATE_TYPE row){
 			}
 			else { // if it is not the first overlapping segment
 
-				if ((run.blobReference != runArray1[c].blobReference) // and this segment is not already associated with the same blob
-						&& (blobs[runArray1[c].blobReference].valid)){
+				if ((run.blobReference != runArray[c].blobReference) // and this segment is not already associated with the same blob
+						&& (blobs[runArray[c].blobReference].valid)){
 					// merge blob features in one
-					blobs[run.blobReference].area += blobs[runArray1[c].blobReference].area;
-					blobs[runArray1[c].blobReference].newBlobReference = run.blobReference;
-					blobs[runArray1[c].blobReference].valid = false;
+					blobs[run.blobReference].area += blobs[runArray[c].blobReference].area;
+					blobs[runArray[c].blobReference].newBlobReference = run.blobReference;
+					blobs[runArray[c].blobReference].valid = false;
 
 					// update blob position values
-					if (run.end < blobs[runArray1[c].blobReference].maxCol)
-						blobs[run.blobReference].maxCol = blobs[runArray1[c].blobReference].maxCol;
-					if (blobs[runArray1[c].blobReference].minRow < blobs[run.blobReference].minRow)
-						blobs[run.blobReference].minRow = blobs[runArray1[c].blobReference].minRow;
-					if (blobs[runArray1[c].blobReference].minCol < blobs[run.blobReference].minCol) //TODO see if necessary
-						blobs[run.blobReference].minCol = blobs[runArray1[c].blobReference].minCol;
-					if (blobs[runArray1[c].blobReference].maxCol > blobs[run.blobReference].maxCol) //TODO see if necessary
-						blobs[run.blobReference].maxCol = blobs[runArray1[c].blobReference].maxCol;
+					if (run.end < blobs[runArray[c].blobReference].maxCol)
+						blobs[run.blobReference].maxCol = blobs[runArray[c].blobReference].maxCol;
+					if (blobs[runArray[c].blobReference].minRow < blobs[run.blobReference].minRow)
+						blobs[run.blobReference].minRow = blobs[runArray[c].blobReference].minRow;
+					if (blobs[runArray[c].blobReference].minCol < blobs[run.blobReference].minCol) //TODO see if necessary
+						blobs[run.blobReference].minCol = blobs[runArray[c].blobReference].minCol;
+					if (blobs[runArray[c].blobReference].maxCol > blobs[run.blobReference].maxCol) //TODO see if necessary
+						blobs[run.blobReference].maxCol = blobs[runArray[c].blobReference].maxCol;
 
-					runArray1[c].blobReference = run.blobReference;
+					runArray[c].blobReference = run.blobReference;
 
 				}
 			}
@@ -162,100 +126,14 @@ void verify_overlap_1(BLOB_REFERENCE_TYPE i, Run & run, COORDINATE_TYPE row){
 
 }
 
-void verify_overlap_2(RUN_REFERENCE_TYPE i, Run & run, COORDINATE_TYPE row){
-	bool overlapDetected = false; //to control if its the first overlap detected or not
-	for(RUN_REFERENCE_TYPE c = 0; c < i; c++){
-		if (
-			((runArray2[c].start <= run.start) && (runArray2[c].end >= run.start)) ||
-			((runArray2[c].start <= run.end) && (runArray2[c].end >= run.end)) ||
-			((runArray2[c].start >= run.start) && (runArray2[c].end <= run.end)) )
-			{
 
-			if (!overlapDetected){ //if it is its first overlap...
-
-				if (blobs[runArray2[c].blobReference].valid){
-					run.blobReference = runArray2[c].blobReference;
-
-					// update blob features
-					blobs[run.blobReference].area += run.end - run.start + 1;
-
-					// update blob position values
-					blobs[runArray2[c].blobReference].maxRow = row;
-					if (run.start < blobs[runArray2[c].blobReference].minCol)
-						blobs[runArray2[c].blobReference].minCol = run.start;
-					if (run.end > blobs[runArray2[c].blobReference].maxCol)
-						blobs[runArray2[c].blobReference].maxCol = run.end;
-
-				}
-				else{
-					run.blobReference = blobs[runArray2[c].blobReference].newBlobReference;
-					// update blob features
-					blobs[run.blobReference].area += run.end - run.start + 1;
-
-					//TODO verify position updates
-					blobs[run.blobReference].maxRow = row;
-					if (run.start < blobs[run.blobReference].minCol)
-						blobs[run.blobReference].minCol = run.start;
-					if (run.end > blobs[run.blobReference].maxCol)
-						blobs[run.blobReference].maxCol = run.end;
-				}
-
-				overlapDetected = true;
-			}
-			else { // if it is not the first overlapping segment
-
-				if ((run.blobReference != runArray2[c].blobReference) // and this segment is not already associated with the same blob
-						&& (blobs[runArray2[c].blobReference].valid)){
-					// merge blob features in one
-					blobs[run.blobReference].area += blobs[runArray2[c].blobReference].area;
-
-					blobs[runArray2[c].blobReference].newBlobReference = run.blobReference;
-					blobs[runArray2[c].blobReference].valid = false;
-
-					// update blob position values
-					if (blobs[run.blobReference].maxCol < blobs[runArray2[c].blobReference].maxCol)
-						blobs[run.blobReference].maxCol = blobs[runArray2[c].blobReference].maxCol;
-					if (blobs[runArray2[c].blobReference].minRow < blobs[run.blobReference].minRow)
-						blobs[run.blobReference].minRow = blobs[runArray2[c].blobReference].minRow;
-					if (blobs[runArray2[c].blobReference].minCol < blobs[run.blobReference].minCol) //TODO see if necessary
-						blobs[run.blobReference].minCol = blobs[runArray2[c].blobReference].minCol;
-
-					runArray2[c].blobReference = run.blobReference;
-				}
-
-			}
-
-		}
-
-	}
-
-	if (!overlapDetected){ // if there was not another segment that overlaps with this one...
-
-		// associate run with a new blob entry
-		run.blobReference = blobsCounter;
-
-		// set it as valid
-		blobs[blobsCounter].valid = true;
-		// set feature values
-		blobs[blobsCounter].area = run.end - run.start + 1;
-		// set position values
-		blobs[blobsCounter].minRow = row;
-		blobs[blobsCounter].maxRow = row;
-		blobs[blobsCounter].minCol = run.start;
-		blobs[blobsCounter].maxCol = run.end;
-
-
-		blobsCounter++;
-	}
-
-}
-
-
-void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src){
+void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src, Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE & blobsCounter){
 
 	//initialize counters
 	RUN_REFERENCE_TYPE i1 = 0;
 	RUN_REFERENCE_TYPE i2 = 0;
+	static Run runArray1[MAX_RUNS];
+	static Run runArray2[MAX_RUNS];
 
 	bool readingRun = false;
 
@@ -274,14 +152,14 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src){
 
 				readingRun = false;
 				runArray1[i1].end = i - 1;
-				verify_overlap_2(i2, runArray1[i1], j);
+				verify_overlap(i2, runArray2, runArray1[i1], j, blobs, blobsCounter);
 				i1++;
 			}
 
 		}
 		if (readingRun){ // if it was reading a run and it finished at the end of the row
 			runArray1[i1].end = WIDTH -1;
-			verify_overlap_2(i2, runArray1[i1], j);
+			verify_overlap(i2, runArray2, runArray1[i1], j, blobs, blobsCounter);
 			readingRun = false;
 			i1++;
 		}
@@ -303,7 +181,7 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src){
 
 						readingRun = false;
 						runArray2[i2].end = i - 1;
-						verify_overlap_1(i1, runArray2[i2], j);
+						verify_overlap(i1, runArray1, runArray2[i2], j, blobs, blobsCounter);
 						i2++;
 					}
 
@@ -311,7 +189,7 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src){
 		if (readingRun){ // if it was reading a run and it finished at the end of the row
 			runArray2[i2].end = WIDTH -1;
 			readingRun = false;
-			verify_overlap_1(i1, runArray2[i2], j);
+			verify_overlap(i1, runArray1, runArray2[i2], j, blobs, blobsCounter);
 			i2++;
 		}
 
@@ -327,9 +205,9 @@ float getCircleAreaValue(unsigned int r){
 		return 0;
 }
 
-void blob_classification(){
+void blob_classification(Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE blobsCounter){
 	// TODO: add Loop-Unrolling
-	for (int i = 0; i < blobsCounter; i++){
+	for (BLOB_REFERENCE_TYPE i = 0; i < blobsCounter; i++){
 		Blob b = blobs[i];
 		if (b.valid){
 			if (b.area > MIN_BLOB_AREA){
@@ -351,22 +229,15 @@ void blob_classification(){
 	}
 }
 
-
-void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst)
-{
-#pragma HLS INTERFACE axis register both  port=_src
-#pragma HLS INTERFACE axis register both  port=_dst
-
-	 xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> imgInput(HEIGHT, WIDTH); //RGB
-	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img0(HEIGHT, WIDTH); //GRAY
+void blob_processing(hls::stream< ap_axiu<24,1,1,1> >& _src , Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE & blobsCounter){
+	xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> imgInput(HEIGHT, WIDTH); //RGB
+	xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img0(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img1(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img2(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img3(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4_a(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4_b(HEIGHT, WIDTH); //GRAY
-	 xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> imgOutput(HEIGHT, WIDTH); //RGB
-
 
 #pragma HLS stream variable=imgInput.data dim=1 depth=1
 #pragma HLS stream variable=img0.data dim=1 depth=1
@@ -376,29 +247,46 @@ void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,
 #pragma HLS stream variable=img4.data dim=1 depth=1
 #pragma HLS stream variable=img4_a.data dim=1 depth=1
 #pragma HLS stream variable=img4_b.data dim=1 depth=1
+	#pragma HLS DATAFLOW
+
+		xf::AXIvideo2xfMat(_src, imgInput);
+	 //RGB to GRAY conversion, to obtain the grayscale image
+	 	xf::rgb2gray<XF_8UC3, XF_8UC1, HEIGHT, WIDTH, XF_NPPC1>(imgInput, img0);
+
+	 	xf::Threshold<XF_THRESHOLD_TYPE_BINARY, XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img0, img1, 118, 255);
+	 	xf::bitwise_not<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img1, img2);
+	 	xf::erode<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
+	 		ERODE_FILTER_SIZE, ERODE_FILTER_SIZE, ERODE_ITERATIONS, NPIX_BLOBS>(img2, img3, erode_kernel);
+	 	xf::dilate<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
+	 			DILATE_FILTER_SIZE, DILATE_FILTER_SIZE, DILATE_ITERATIONS, NPIX_BLOBS>(img3, img4, dilation_kernel);
+
+	 	xf::duplicateMat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img4, img4_a, img4_b);
+
+		blob_detection(img4_a, blobs, blobsCounter);
+
+
+}
+
+
+void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst)
+{
+#pragma HLS INTERFACE axis register both  port=_src
+#pragma HLS INTERFACE axis register both  port=_dst
+
+	xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> imgOutput(HEIGHT, WIDTH); //RGB
+
+
+	 Blob blobs[MAX_BLOBS];
+	 BLOB_REFERENCE_TYPE blobsCounter = 0;
+
+
 #pragma HLS stream variable=imgOutputput.data dim=1 depth=1
-	#pragma HLS dataflow
 
+//#pragma HLS DATAFLOW
 
-	xf::AXIvideo2xfMat(_src, imgInput);
-	//RGB to GRAY conversion, to obtain the grayscale image
-	xf::rgb2gray<XF_8UC3, XF_8UC1, HEIGHT, WIDTH, XF_NPPC1>(imgInput, img0);
+	blob_processing(_src, blobs, blobsCounter);
 
-
-	xf::Threshold<XF_THRESHOLD_TYPE_BINARY, XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img0, img1, 118, 255);
-	xf::bitwise_not<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img1, img2);
-	xf::erode<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
-		ERODE_FILTER_SIZE, ERODE_FILTER_SIZE, ERODE_ITERATIONS, NPIX_BLOBS>(img2, img3, erode_kernel);
-	xf::dilate<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
-			DILATE_FILTER_SIZE, DILATE_FILTER_SIZE, DILATE_ITERATIONS, NPIX_BLOBS>(img3, img4, dilation_kernel);
-
-	xf::duplicateMat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img4, img4_a, img4_b);
-
-	blob_detection(img4_a);
-
-	blob_classification();
-
-	xf::gray2rgb<XF_8UC1, XF_8UC3, HEIGHT, WIDTH, XF_NPPC1>(img4_b, imgOutput);
+	blob_classification(blobs, blobsCounter);
 
 	for (BLOB_REFERENCE_TYPE i = 0; i < blobsCounter; i++){
 		if (blobs[i].valid){

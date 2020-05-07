@@ -35,8 +35,15 @@
 #include "common/xf_structs.h"
 #include "common/xf_axi_sdata.h"
 #include "common/xf_infra.h"
+#include "hls_stream.h"
 
-#define COORDINATE_BITS 11
+//functions used
+#include "imgproc/xf_cvt_color.hpp"
+#include "imgproc/xf_duplicateimage.hpp"
+#include "imgproc/xf_threshold.hpp"
+#include "core/xf_arithm.hpp"
+#include "imgproc/xf_erosion.hpp"
+#include "imgproc/xf_dilation.hpp"
 
 
 #endif//_XF_HEADERS_H_

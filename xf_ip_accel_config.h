@@ -31,20 +31,32 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _XF_IP_ACCEL_CONFIG_H_
 #define _XF_IP_ACCEL_CONFIG_H_
 
-#include "hls_stream.h"
-#include "ap_int.h"
-#include "xf_headers.h"
 
+#include "xf_headers.h"
 
 
 /*  define the input and output types  */
 #define NPIX_BLOBS XF_NPPC1
 
-#define WIDTH 2431
-#define HEIGHT 2426
+#define COORDINATE_BITS 11
+
+#define WIDTH 1280//2431
+#define HEIGHT 720//2426
 
 #define MIN_BLOB_AREA 500
 #define MIN_BLOB_ROUNDNESS 0.6
+#define MAX_BLOB_RADIUS 200
+
+
+#define ERODE_ITERATIONS 10
+#define ERODE_FILTER_SIZE 7
+
+#define DILATE_ITERATIONS 10
+#define DILATE_FILTER_SIZE 11
+
+#define MAX_BLOBS 1024
+#define MAX_RUNS 64
+
 
 void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst);
 #endif // _XF_IP_ACCEL_CONFIG_H_
