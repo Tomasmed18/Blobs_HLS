@@ -34,10 +34,12 @@ unsigned char dilation_kernel[DILATE_FILTER_SIZE*DILATE_FILTER_SIZE] =   {0,0,0,
 
 
 void verify_overlap(BLOB_REFERENCE_TYPE i, Run (&runArray)[MAX_RUNS], Run & run, COORDINATE_TYPE row, Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE & blobsCounter){
-	bool overlapDetected = false; //to control if its the first overlap detected or not
+
+	bool overlapDetected = false; //to control if its the first overlap detected of this run or not
+
 	for(BLOB_REFERENCE_TYPE c = 0; c < i; c++){
 		if (
-			((runArray[c].start <= run.start) && (runArray[c].end >= run.start)) ||
+			((runArray[c].start <= run.start) && (runArray[c].end >= run.start)) || //conditions to verify overlapping between 2 segments
 			((runArray[c].start <= run.end) && (runArray[c].end >= run.end)) ||
 			((runArray[c].start >= run.start) && (runArray[c].end <= run.end)) )
 			{
@@ -60,7 +62,7 @@ void verify_overlap(BLOB_REFERENCE_TYPE i, Run (&runArray)[MAX_RUNS], Run & run,
 
 
 				}
-				else{
+				else{ // special case, where the segment that overlaps with this run has been re-associated with a different blob
 					run.blobReference = blobs[runArray[c].blobReference].newBlobReference;
 					//  update possible blob features
 					blobs[run.blobReference].area += run.end - run.start + 1;
@@ -129,13 +131,13 @@ void verify_overlap(BLOB_REFERENCE_TYPE i, Run (&runArray)[MAX_RUNS], Run & run,
 
 void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src, Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE & blobsCounter){
 
-	//initialize counters
+	//initialize counters for Run arrays
 	RUN_REFERENCE_TYPE i1 = 0;
 	RUN_REFERENCE_TYPE i2 = 0;
 	static Run runArray1[MAX_RUNS];
 	static Run runArray2[MAX_RUNS];
 
-	bool readingRun = false;
+	bool readingRun = false; // state bit
 
 	for(COORDINATE_TYPE j = 0; j < (HEIGHT); j++ ){
 		i1 = 0;
@@ -165,7 +167,7 @@ void blob_detection(xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & src, Blob (&bl
 		}
 
 		j++;
-
+		// repeated code...
 		readingRun = false;
 		i2 = 0;
 		for(COORDINATE_TYPE i = 0; i < ((WIDTH>>XF_BITSHIFT(XF_NPPC1))); i++ ){
@@ -205,7 +207,7 @@ float getCircleAreaValue(unsigned int r){
 		return 0;
 }
 
-void blob_classification(Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE blobsCounter){
+void blob_classification(Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE blobsCounter, bool & error){
 	// TODO: add Loop-Unrolling
 	for (BLOB_REFERENCE_TYPE i = 0; i < blobsCounter; i++){
 		Blob b = blobs[i];
@@ -221,36 +223,31 @@ void blob_classification(Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE blobsCoun
 
 				//std::cout << i << " = " << blobInverseRoundness << std::endl;
 
-				if (blobInverseRoundness < MIN_BLOB_ROUNDNESS)
-					blobs[i].valid = false;
-			} else
-				blobs[i].valid = false;
+				if (blobInverseRoundness < MIN_BLOB_ROUNDNESS){
+					error = true;
+					//blobs[i].valid = false; DELETED TO AVOID WRITING IN BLOBS[i].VALID
+				}
+			} //else
+				//blobs[i].valid = false; DELETED TO AVOID WRITING IN BLOBS[i].VALID
 		}
 	}
 }
 
-void blob_processing(hls::stream< ap_axiu<24,1,1,1> >& _src , Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE & blobsCounter){
+void blob_preprocessing(hls::stream< ap_axiu<24,1,1,1> >& _src, xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> & imgOut, Blob (&blobs)[MAX_BLOBS], BLOB_REFERENCE_TYPE & blobsCounter){
 	xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> imgInput(HEIGHT, WIDTH); //RGB
 	xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img0(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img1(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img2(HEIGHT, WIDTH); //GRAY
 	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img3(HEIGHT, WIDTH); //GRAY
-	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4(HEIGHT, WIDTH); //GRAY
-	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4_a(HEIGHT, WIDTH); //GRAY
-	 xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> img4_b(HEIGHT, WIDTH); //GRAY
 
 #pragma HLS stream variable=imgInput.data dim=1 depth=1
 #pragma HLS stream variable=img0.data dim=1 depth=1
 #pragma HLS stream variable=img1.data dim=1 depth=1
 #pragma HLS stream variable=img2.data dim=1 depth=1
 #pragma HLS stream variable=img3.data dim=1 depth=1
-#pragma HLS stream variable=img4.data dim=1 depth=1
-#pragma HLS stream variable=img4_a.data dim=1 depth=1
-#pragma HLS stream variable=img4_b.data dim=1 depth=1
 	#pragma HLS DATAFLOW
 
 		xf::AXIvideo2xfMat(_src, imgInput);
-	 //RGB to GRAY conversion, to obtain the grayscale image
 	 	xf::rgb2gray<XF_8UC3, XF_8UC1, HEIGHT, WIDTH, XF_NPPC1>(imgInput, img0);
 
 	 	xf::Threshold<XF_THRESHOLD_TYPE_BINARY, XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img0, img1, 118, 255);
@@ -258,69 +255,47 @@ void blob_processing(hls::stream< ap_axiu<24,1,1,1> >& _src , Blob (&blobs)[MAX_
 	 	xf::erode<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
 	 		ERODE_FILTER_SIZE, ERODE_FILTER_SIZE, ERODE_ITERATIONS, NPIX_BLOBS>(img2, img3, erode_kernel);
 	 	xf::dilate<XF_BORDER_CONSTANT, XF_8UC1 , HEIGHT, WIDTH, XF_SHAPE_ELLIPSE,
-	 			DILATE_FILTER_SIZE, DILATE_FILTER_SIZE, DILATE_ITERATIONS, NPIX_BLOBS>(img3, img4, dilation_kernel);
-
-	 	xf::duplicateMat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(img4, img4_a, img4_b);
-
-		blob_detection(img4_a, blobs, blobsCounter);
-
+	 			DILATE_FILTER_SIZE, DILATE_FILTER_SIZE, DILATE_ITERATIONS, NPIX_BLOBS>(img3, imgOut, dilation_kernel);
 
 }
 
 
-void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst)
+void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst, bool & errorDetected)
 {
 #pragma HLS INTERFACE axis register both  port=_src
 #pragma HLS INTERFACE axis register both  port=_dst
 
+	xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> imgPreprocessed(HEIGHT, WIDTH); //GRAY
+	xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> imgPreprocessed_a(HEIGHT, WIDTH); //GRAY
+	xf::Mat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS> imgPreprocessed_b(HEIGHT, WIDTH); //GRAY
 	xf::Mat<XF_8UC3, HEIGHT, WIDTH, NPIX_BLOBS> imgOutput(HEIGHT, WIDTH); //RGB
 
 
 	 Blob blobs[MAX_BLOBS];
 	 BLOB_REFERENCE_TYPE blobsCounter = 0;
+	 bool error = false;
 
-
+#pragma HLS stream variable=imgPreprocessed.data dim=1 depth=1
+#pragma HLS stream variable=imgPreprocessed_a.data dim=1 depth=1
+#pragma HLS stream variable=imgPreprocessed_b.data dim=1 depth=1
 #pragma HLS stream variable=imgOutputput.data dim=1 depth=1
+#pragma HLS stream variable=blobs dim=1 depth=1
 
-//#pragma HLS DATAFLOW
+#pragma HLS DATAFLOW
 
-	blob_processing(_src, blobs, blobsCounter);
+	/* IMAGE PREPROCESSING */
+	blob_preprocessing(_src, imgPreprocessed, blobs, blobsCounter);
+ 	xf::duplicateMat<XF_8UC1, HEIGHT, WIDTH, NPIX_BLOBS>(imgPreprocessed, imgPreprocessed_a, imgPreprocessed_b);
 
-	blob_classification(blobs, blobsCounter);
+	/* IMAGE PROCESSING */
+	blob_detection(imgPreprocessed_a, blobs, blobsCounter);
 
-	for (BLOB_REFERENCE_TYPE i = 0; i < blobsCounter; i++){
-		if (blobs[i].valid){
-//			int areaCount = 0;
-//			for (int row = blobs[i].minRow; row <= blobs[i].maxRow; row++)
-//				for (int col = blobs[i].minCol; col <= blobs[i].maxCol; col++)
-//					if (img0.data[row*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+col] > 200)
-//						areaCount++;
-//			std::cout << i << " --> minRow: " << blobs[i].minRow <<
-//					"  maxRow: " << blobs[i].maxRow <<
-//					"  minCol: " << blobs[i].minCol <<
-//					"  maxCol: " << blobs[i].maxCol << std::endl;
-//
-//
-//			std::cout << "areaCount --> " << areaCount << std::endl;
-//			std::cout << "area      --> " << blobs[i].area << std::endl << std::endl;
+	/* BLOB CLASSIFICATION */
+	blob_classification(blobs, blobsCounter, error);
 
-
-			for (COORDINATE_TYPE j = blobs[i].minRow; j <= blobs[i].maxRow; j++){
-				imgOutput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].minCol)] = 0x00FF00;
-				imgOutput.data[j*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+(blobs[i].maxCol)] = 0x00FF00;
-			}
-			for (COORDINATE_TYPE j = blobs[i].minCol; j <= blobs[i].maxCol; j++){
-				imgOutput.data[(blobs[i].minRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
-				imgOutput.data[(blobs[i].maxRow)*(WIDTH>>XF_BITSHIFT(XF_NPPC1))+j] = 0x00FF00;
-			}
-
-		}
-	}
-
-
-
-	//xf::gray2rgb<XF_8UC1, XF_8UC3, HEIGHT, WIDTH, XF_NPPC1>(img0, imgOutput);
+	/* GENERATE OUTPUT IMAGE */
+	xf::gray2rgb<XF_8UC1, XF_8UC3, HEIGHT, WIDTH, XF_NPPC1>(imgPreprocessed_b, imgOutput);
 	xf::xfMat2AXIvideo(imgOutput, _dst);
 
-
+	errorDetected = error;
 }
