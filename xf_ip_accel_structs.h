@@ -3,7 +3,7 @@
 struct Blob{
 	AREA_TYPE area;
 	//unsigned int perimeter;
-	bool valid = false;
+	//bool valid = false;
 
 	COORDINATE_TYPE minRow, minCol, maxRow, maxCol;
 

@@ -59,6 +59,7 @@ int main(int argc, char** argv)
 
 	hls::stream< ap_axiu<24,1,1,1> > _src;
 	hls::stream< ap_axiu<24,1,1,1> > _dst;
+	bool result = false;
 
 	#if __SDSCC__
 	perf_counter hw_ctr;
@@ -67,7 +68,7 @@ int main(int argc, char** argv)
 
 	cvMat2AXIvideoxf<XF_NPPC1>(in_img, _src);
 
-	blobs_accel(_src, _dst);
+	blobs_accel(_src, _dst, result);
 
 	AXIvideo2cvMatxf<XF_NPPC1>(_dst, out_img);
 

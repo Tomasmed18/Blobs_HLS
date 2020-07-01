@@ -40,8 +40,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define COORDINATE_BITS 11
 
-#define WIDTH 1280//2431
-#define HEIGHT 720//2426
+#define WIDTH 2431
+#define HEIGHT 2426
 
 #define MIN_BLOB_AREA 500
 #define MIN_BLOB_ROUNDNESS 0.6
@@ -58,5 +58,5 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MAX_RUNS 64
 
 
-void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst);
+void blobs_accel(hls::stream< ap_axiu<24,1,1,1> >& _src,hls::stream< ap_axiu<24,1,1,1> >& _dst, bool & errorDetectedg);
 #endif // _XF_IP_ACCEL_CONFIG_H_
